@@ -30,3 +30,13 @@
 *.exe
 *.out
 *.app
+
+# clion build directory
+cmake-build-debug
+.idea
+
+# imgui thirparty directories
+imgui-*.*
+
+# osx
+.DS_Store
