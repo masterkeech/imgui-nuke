@@ -19,3 +19,14 @@ target_link_libraries(ImGuiDemo DDImage GLEW
         "-framework OpenGL"
         "-framework AGL"
         )
+
+add_library(ImGuiEditNode SHARED editnode.cpp ${IMGUI_CPP_FILES})
+target_link_libraries(ImGuiEditNode DDImage GLEW
+        "-framework QuartzCore"
+        "-framework IOKit"
+        "-framework CoreFoundation"
+        "-framework Carbon"
+        "-framework ApplicationServices"
+        "-framework OpenGL"
+        "-framework AGL"
+        )
