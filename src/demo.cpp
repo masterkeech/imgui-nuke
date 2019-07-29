@@ -20,11 +20,7 @@ using namespace DD::Image;
 class ImGuiDemo : public NoIop, public ImGuiNuke
 {
 public:
-    ImGuiDemo(Node* node) : NoIop(node)
-    {
-        // set the glsl version to 120 as we have a crappy graphics card :(
-        glsl_version_ = 120;
-    }
+    ImGuiDemo(Node* node) : NoIop(node) { }
     virtual void knobs(Knob_Callback);
     const char* Class() const { return CLASS; }
     const char* node_help() const { return HELP; }
@@ -76,8 +72,9 @@ void ImGuiDemo::build_handles(ViewerContext* ctx)
     build_knob_handles(ctx);
 
     // Don't draw anything unless viewer is in 2d mode:
-    if (ctx->transform_mode() != VIEWER_2D)
+    if (ctx->transform_mode() != VIEWER_2D) {
         return;
+    }
 
     // make it call draw_handle():
     add_draw_handle(ctx);
@@ -97,14 +94,16 @@ void ImGuiDemo::draw_handle(ViewerContext* ctx)
     //
     // For 2D this will draw both a "shadow" line and a "real" line, but skip
     // all the other calls to draw_handle():
-    if ( !ctx->draw_lines() )
+    if ( !ctx->draw_lines() ) {
         return;
+    }
 
     NewFrame();
 
     ImGuiIO &io = GetImGuiIO();
     io.MousePos = ImVec2(ctx->mouse_x(), ctx->mouse_y());
 
+    // Draw the demo window
     ImGui::ShowDemoWindow();
 
     // Rendering

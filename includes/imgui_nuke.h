@@ -26,7 +26,6 @@ protected:
     int          attrib_location_tex_, attrib_location_proj_matrix_;
     int          attrib_location_position_, attrib_location_uv_, attrib_location_color_;
     unsigned int vbo_handle_, elements_handle_;
-    int glsl_version_;
     ImGuiContext* context_;
 
 
@@ -36,8 +35,9 @@ protected:
         GLint status = 0, log_length = 0;
         glGetShaderiv(handle, GL_COMPILE_STATUS, &status);
         glGetShaderiv(handle, GL_INFO_LOG_LENGTH, &log_length);
-        if ((GLboolean)status == GL_FALSE)
+        if ((GLboolean)status == GL_FALSE) {
             fprintf(stderr, "ERROR: CreateDeviceObjects: failed to compile %s!\n", desc);
+        }
         if (log_length > 0)
         {
             ImVector<char> buf;
@@ -54,8 +54,9 @@ protected:
         GLint status = 0, log_length = 0;
         glGetProgramiv(handle, GL_LINK_STATUS, &status);
         glGetProgramiv(handle, GL_INFO_LOG_LENGTH, &log_length);
-        if ((GLboolean)status == GL_FALSE)
+        if ((GLboolean)status == GL_FALSE) {
             fprintf(stderr, "ERROR: CreateDeviceObjects: failed to link %s! (with GLSL 410)\n", desc);
+        }
         if (log_length > 0)
         {
             ImVector<char> buf;
@@ -83,36 +84,42 @@ public:
     bool handle(ViewerContext* ctx, int index)
     {
         ImGuiIO &io = GetImGuiIO();
-        if (DEBUG)
+        if (DEBUG) {
             printf("Index %d: ", index);
+        }
         switch (ctx->event()) {
             case PUSH:
             {
-                if (DEBUG)
+                if (DEBUG) {
                     printf("PUSH");
+                }
                 io.MouseDown[ctx->button()-1] = true;
                 break;
             }
             case DRAG:
-                if (DEBUG)
+                if (DEBUG) {
                     printf("DRAG");
+                }
                 break;
             case RELEASE:
             {
-                if (DEBUG)
+                if (DEBUG) {
                     printf("RELEASE");
+                }
                 io.MouseDown[ctx->button()-1] = false;
                 break;
             }
             case MOVE:
-                if (DEBUG)
+                if (DEBUG) {
                     printf("MOVE");
+                }
                 break;
                 // MOVE will only work if you use ANYWHERE_MOUSEMOVES instead of
                 // ANYWHERE below.
             default:
-                if (DEBUG)
+                if (DEBUG) {
                     printf("event()==%d", ctx->event());
+                }
                 break;
         }
         io.MousePos = ImVec2(ctx->mouse_x(), ctx->mouse_y());
@@ -144,7 +151,7 @@ public:
 class ImGuiKnob : public Knob
 {
     ImGuiNuke* theOp;
-    const char* Class() const { return "ImGui"; }
+    const char* Class() const { return "ImGuiKnob"; }
 public:
 
     // This is what Nuke will call once the below stuff is executed:
@@ -168,20 +175,6 @@ public:
             || ctx->event() == DRAG // true for selection box hit-detection
                 ) {
 
-            // Draw something in OpenGL that can be hit-detected. If this
-            // is hit-detected then handle() is called with index = 1
-            begin_handle(ctx, handle_cb, 1 /*index*/, 0, 0, 0);
-            glBegin(GL_POLYGON);
-            glVertex2i(10, 10);
-            glVertex2i(30, 5);
-            glVertex2i(35, 35);
-            glVertex2i(10, 35);
-            glEnd();
-
-            // Draw a dot that is hit-detected. If it is then handle() is
-            // called with index = 2
-            make_handle(ctx, handle_cb, 2 /*index*/, 50, 50, 0 /*xyz*/);
-
             // Make clicks anywhere in the viewer call handle() with index = 0.
             // This takes the lowest precedence over, so above will be detected
             // first.
@@ -195,15 +188,15 @@ public:
     {
         // If your handles only work in 2D or 3D mode, only return true
         // in those cases:
-        // return (ctx->transform_mode() == VIEWER_2D);
         return true;
     }
 };
 
 bool ImGuiNuke::CreateFontsTexture()
 {
-    if (DEBUG)
+    if (DEBUG) {
         std::cerr << "CreateFontsTexture start" << std::endl;
+    }
     // Build texture atlas
     ImGuiIO& io = GetImGuiIO();
     unsigned char* pixels;
@@ -226,8 +219,9 @@ bool ImGuiNuke::CreateFontsTexture()
     // Restore state
     glBindTexture(GL_TEXTURE_2D, last_texture);
 
-    if (DEBUG)
+    if (DEBUG) {
         std::cerr << "CreateFontsTexture end" << std::endl;
+    }
 
     return true;
 }
@@ -265,8 +259,9 @@ void ImGuiNuke::DestroyDeviceObjects()
 
 bool ImGuiNuke::CreateDeviceObjects()
 {
-    if (DEBUG)
+    if (DEBUG) {
         std::cerr << "CreateDeviceObjects start" << std::endl;
+    }
     // Backup GL state
     GLint last_texture, last_array_buffer, last_vertex_array;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &last_texture);
@@ -274,11 +269,15 @@ bool ImGuiNuke::CreateDeviceObjects()
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &last_vertex_array);
 
     //
+    int glsl_version;
     std::string gls_version_string;
     // Parse GLSL version string
     {
+        std::stringstream gl_version_stream;
+        gl_version_stream << glGetString(GL_SHADING_LANGUAGE_VERSION);
+        glsl_version = int(std::stof(gl_version_stream.str()) * 100.0f);
         std::stringstream gl_string_stream;
-        gl_string_stream << "#version " << glsl_version_ << std::endl;
+        gl_string_stream << "#version " << glsl_version << std::endl;
         gls_version_string = gl_string_stream.str();
     }
 
@@ -385,17 +384,17 @@ bool ImGuiNuke::CreateDeviceObjects()
     // Select shaders matching our GLSL versions
     const GLchar* vertex_shader = NULL;
     const GLchar* fragment_shader = NULL;
-    if (glsl_version_ < 130)
+    if (glsl_version < 130)
     {
         vertex_shader = vertex_shader_glsl_120;
         fragment_shader = fragment_shader_glsl_120;
     }
-    else if (glsl_version_ >= 410)
+    else if (glsl_version >= 410)
     {
         vertex_shader = vertex_shader_glsl_410_core;
         fragment_shader = fragment_shader_glsl_410_core;
     }
-    else if (glsl_version_ == 300)
+    else if (glsl_version == 300)
     {
         vertex_shader = vertex_shader_glsl_300_es;
         fragment_shader = fragment_shader_glsl_300_es;
@@ -442,17 +441,17 @@ bool ImGuiNuke::CreateDeviceObjects()
     glBindBuffer(GL_ARRAY_BUFFER, last_array_buffer);
     glBindVertexArray(last_vertex_array);
 
-    if (DEBUG)
+    if (DEBUG) {
         std::cerr << "CreateDeviceObjects end" << std::endl;
+    }
 
     return true;
 }
 
 ImGuiNuke::ImGuiNuke() : font_texture_(0), shader_handle_(0), vert_handle_(0), frag_handle_(0),
                   attrib_location_tex_(0), attrib_location_proj_matrix_(0), attrib_location_position_(0),
-                  attrib_location_uv_(0), attrib_location_color_(0), vbo_handle_(0), elements_handle_(0),
-                  glsl_version_(130), context_(0x0)
-                  { }
+                  attrib_location_uv_(0), attrib_location_color_(0), vbo_handle_(0), elements_handle_(0), context_(0x0)
+                  {}
 
 ImGuiNuke::~ImGuiNuke()
     {
@@ -466,8 +465,9 @@ void ImGuiNuke::Init(unsigned int width, unsigned int height)
     if (context_ == NULL)
     {
         context_ = ImGui::CreateContext();
-        if (DEBUG)
+        if (DEBUG) {
             std::cerr << "creating imgui context: " << context_ << std::endl;
+        }
         ImGui::StyleColorsDark();
     }
     if (context_)

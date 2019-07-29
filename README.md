@@ -1,17 +1,22 @@
 # imgui-nuke
-A simple header only implementation of imgui for Foundry's Nuke software
+A simple header only implementation of imgui for Foundry's Nuke software.
+
+![alt text](example_ImGuiDemo.png)
 
 # installation
 
 ## imgui
 
-Download the desired version of imgui from https://github.com/ocornut/imgui and install the headers into the third-party directory. Set the IMGUI_VERSION CMake variable to point at the installed version number, eg. 1.70.
+Download the desired version of imgui from https://github.com/ocornut/imgui and extract the headers into the imgui-nuke/third-party directory. Then update the IMGUI_VERSION CMake variable to the installed version number, eg. 1.70.
 
 ## nuke
 ### mac osx
-Set the NUKE_VERSION CMake variable to the version of Nuke to compile against, eg. 11.2v5.
+Set the NUKE_VERSION CMake variable to the version of Nuke to compile against, eg. 11.2v5, assuming standard installation.
 ### linux
-Cmake has not yet been setup for compiling and running against Nuke.
+TODO: CMake needs to be setup to work with Nuke on Linux.
 
 # usage
-See demo.cpp as a simple example of how to compile against the imgui_nuke header and add imgui to your plugins.
+demo.cpp is the standard example of how to compile against imgui_nuke.h and add imgui to your plugins. The demo shows all of the different types of widgets, layouts, windows and how they can easily be used to render a gui inside of Nuke's viewer.
+
+# known issues
+imgui-nuke only works with the mouse events as the ViewerContext doesn't correctly report keyboard events yet.
