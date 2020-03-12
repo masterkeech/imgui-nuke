@@ -11,7 +11,9 @@
 #include "DDImage/Knob.h"
 #include "DDImage/Knobs.h"
 
+#ifndef DEBUG
 #define DEBUG 0
+#endif
 
 using namespace DD::Image;
 
@@ -25,7 +27,11 @@ public:
     // This is what Nuke will call once the below stuff is executed:
     static bool handle_cb(ViewerContext* ctx, Knob* knob, int index)
     {
-        return ((ImGuiKnob*)knob)->theOp->handle(ctx, index);
+        if (DEBUG)
+        {
+            printf("%s ", knob->op()->node_name().c_str());
+        }
+        return ((ImGuiKnob*)knob)->theOp->Handle(ctx, index);
     }
 
     ImGuiKnob(Knob_Closure* kc, T* t, const char* n) : Knob(kc, n)
@@ -38,25 +44,56 @@ public:
     // something...
     void draw_handle(ViewerContext* ctx)
     {
+        // There are several "passes" and you should draw things during the correct
+        // passes. There are a list of true/false tests on the ctx object to see if
+        // something should be drawn during this pass.
+        //
+        // For 2D this will draw both a "shadow" line and a "real" line, but skip
+        // all the other calls to draw_handle():
+        if (!ctx->draw_lines())
+        {
+            return;
+        }
+
+        // create the new frame for imgui
+        theOp->NewFrame();
+
+        // update the the mouse cursor position for the imgui io
+        ImGuiIO &io = theOp->GetImGuiIO();
+        io.MousePos = ImVec2(ctx->mouse_x(), ctx->mouse_y());
+
+        // Rendering the custom imgui setup
+        theOp->Render(ctx, (Knob*)this);
+
+        // Rendering
+        ImGui::Render();
+
+        theOp->RenderDrawData(ImGui::GetDrawData());
+
+        // draw the selection area
         if (ctx->event() == DRAW_OPAQUE
             || ctx->event() == PUSH // true for clicking hit-detection
             || ctx->event() == DRAG // true for selection box hit-detection
                 ) {
-
             // Make clicks anywhere in the viewer call handle() with index = 0.
             // This takes the lowest precedence over, so above will be detected
             // first.
             begin_handle(Knob::ANYWHERE, ctx, handle_cb, 0 /*index*/, 0, 0, 0 /*xyz*/);
             end_handle(ctx);
         }
+
+        asapUpdate();
     }
 
     // And you need to implement this just to make it call draw_handle:
     bool build_handle(ViewerContext* ctx)
     {
-        // If your handles only work in 2D or 3D mode, only return true
-        // in those cases:
-        return true;
+#ifdef __APPLE__
+        theOp->Init(ctx->visibleViewportArea().w(), ctx->visibleViewportArea().h());
+#else
+        theOp->Init(ctx->viewport().w(), ctx->viewport().h());
+#endif
+        return theOp->BuildHandles(ctx, (Knob*)this);
     }
 };
 
@@ -149,6 +186,9 @@ protected:
     {
         if (font_texture_)
         {
+            if (DEBUG) {
+                std::cerr << "DestroyFontsTexture" << std::endl;
+            }
             ImGuiIO& io = ImGui::GetIO();
             glDeleteTextures(1, &font_texture_);
             io.Fonts->TexID = 0;
@@ -158,6 +198,9 @@ protected:
 
     void DestroyDeviceObjects()
     {
+        if (DEBUG) {
+            std::cerr << "DestroyDeviceObjects" << std::endl;
+        }
         if (vbo_handle_) glDeleteBuffers(1, &vbo_handle_);
         if (elements_handle_) glDeleteBuffers(1, &elements_handle_);
         vbo_handle_ = elements_handle_ = 0;
@@ -371,29 +414,39 @@ public:
 
     ImGuiNuke() : font_texture_(0), shader_handle_(0), vert_handle_(0), frag_handle_(0),
                   attrib_location_tex_(0), attrib_location_proj_matrix_(0), attrib_location_position_(0),
-                  attrib_location_uv_(0), attrib_location_color_(0), vbo_handle_(0), elements_handle_(0), context_(0x0)
+                  attrib_location_uv_(0), attrib_location_color_(0), vbo_handle_(0), elements_handle_(0), context_(nullptr)
     {}
 
-    ~ImGuiNuke()
+    void Cleanup()
     {
-        ImGui::SetCurrentContext(context_);
-        DestroyDeviceObjects();
-        ImGui::DestroyContext(context_);
+        if (context_) {
+            if (DEBUG) {
+                std::cerr << "cleaning up begin" << std::endl;
+            }
+            ImGui::SetCurrentContext(context_);
+            DestroyDeviceObjects();
+            ImGui::DestroyContext(context_);
+            if (DEBUG) {
+                std::cerr << "cleaning up end" << std::endl;
+            }
+        }
     }
 
-    bool handle(ViewerContext* ctx, int index)
+    bool Handle(ViewerContext* ctx, int index)
     {
         ImGuiIO &io = GetImGuiIO();
         if (DEBUG) {
             printf("Index %d: ", index);
         }
+        // swap middle mouse button and right mouse click
+        auto get_button = [](int b) { return b == 1 || b > 3 ? b - 1 : (b - 1) % 2 + 1; };
         switch (ctx->event()) {
             case PUSH:
             {
                 if (DEBUG) {
                     printf("PUSH");
                 }
-                io.MouseDown[ctx->button()-1] = true;
+                io.MouseDown[get_button(ctx->button())] = true;
                 break;
             }
             case DRAG:
@@ -406,7 +459,7 @@ public:
                 if (DEBUG) {
                     printf("RELEASE");
                 }
-                io.MouseDown[ctx->button()-1] = false;
+                io.MouseDown[get_button(ctx->button())] = false;
                 break;
             }
             case MOVE:
@@ -422,11 +475,15 @@ public:
                 }
                 break;
         }
+        io.KeyCtrl = ctx->event() != RELEASE && (ctx->state() & CTRL) != 0;
+        io.KeyShift = ctx->event() != RELEASE && (ctx->state() & SHIFT) != 0;
+        io.KeyAlt = ctx->event() != RELEASE && (ctx->state() & ALT) != 0;
         io.MousePos = ImVec2(ctx->mouse_x(), ctx->mouse_y());
         if (DEBUG) {
             printf(" xyz=%g,%g,%g", ctx->x(), ctx->y(), ctx->z());
             printf(" mousexy=%d,%d", ctx->mouse_x(), ctx->mouse_y());
-            printf(" button=%d", ctx->button());
+            printf(" button=%d state=%d", ctx->button(), ctx->state());
+            printf(" ctrl=%d shift=%d alt=%d", io.KeyCtrl, io.KeyShift, io.KeyAlt);
             printf("\n");
         }
         return true; // true means we are interested in the event
@@ -434,7 +491,7 @@ public:
 
     void Init(unsigned int width, unsigned int height)
     {
-        if (context_ == NULL)
+        if (context_ == nullptr)
         {
             context_ = ImGui::CreateContext();
             if (DEBUG) {
@@ -634,6 +691,11 @@ public:
         glScissor(last_scissor_box[0], last_scissor_box[1], (GLsizei)last_scissor_box[2], (GLsizei)last_scissor_box[3]);
     }
 
+    // used to render your custom imgui ui
+    virtual void Render(ViewerContext* ctx, Knob *knob) = 0;
+
+    // determine when to build the handles, eg. 3d vs. 2d
+    virtual bool BuildHandles(ViewerContext* ctx, Knob *knob) = 0;
 };
 
 #endif
